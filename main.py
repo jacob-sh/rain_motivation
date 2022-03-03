@@ -1,9 +1,17 @@
-import tensorflow as tf
-from tensorflow import keras
+import random
+random.seed(494)
 
+import numpy as np
+np.random.seed(494)
+
+import tensorflow as tf
+tf.random.set_seed(494)
+
+from tensorflow import keras
 from tensorflow.keras import datasets, layers, models
 import matplotlib.pyplot as plt
 
+seed = '494'
 
 # Download and prepare the CIFAR10 dataset
 (train_images, train_labels), (test_images, test_labels) = datasets.cifar10.load_data()
@@ -55,9 +63,9 @@ history = model.fit(train_images, train_labels, epochs=10,
 test_loss, test_acc = model.evaluate(test_images,  test_labels, verbose=2)
 
 print(test_acc)
-model.save('./original_model')
+model.save('./model_' + seed)
 
-model2 = keras.models.load_model('./original_model')
+model2 = keras.models.load_model('./model_' + seed)
 
 test_loss, test_acc = model2.evaluate(test_images,  test_labels, verbose=2)
 
