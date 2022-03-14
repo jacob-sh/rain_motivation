@@ -1,17 +1,17 @@
 import random
-random.seed(494)
+random.seed(123)
 
 import numpy as np
-np.random.seed(494)
+np.random.seed(123)
 
 import tensorflow as tf
-tf.random.set_seed(494)
+tf.random.set_seed(123)
 
 from tensorflow import keras
 from tensorflow.keras import datasets, layers, models
 import matplotlib.pyplot as plt
 
-seed = '494'
+seed = '123'
 
 # Download and prepare the CIFAR10 dataset
 (train_images, train_labels), (test_images, test_labels) = datasets.cifar10.load_data()
@@ -57,7 +57,7 @@ model.compile(optimizer='adam',
               loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
               metrics=['sparse_categorical_accuracy'])
 
-history = model.fit(train_images, train_labels, epochs=10,
+history = model.fit(train_images, train_labels, epochs=20,
                     validation_data=(test_images, test_labels))
 
 test_loss, test_acc = model.evaluate(test_images,  test_labels, verbose=2)

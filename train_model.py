@@ -7,8 +7,10 @@ np.random.seed(494)
 import tensorflow as tf
 tf.random.set_seed(494)
 
-from tensorflow import keras
-from tensorflow.keras import datasets, layers, models
+import keras
+from keras.models import Sequential
+from keras.layers import Dense, Flatten, Conv2D, MaxPooling2D, Flatten, InputLayer, Reshape
+from keras import datasets, layers, models
 import matplotlib.pyplot as plt
 
 seed = '494'
