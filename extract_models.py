@@ -15,6 +15,9 @@ from art.attacks.extraction import CopycatCNN, KnockoffNets
 
 from art.estimators.classification import KerasClassifier
 
+if tf.executing_eagerly():
+    tf.compat.v1.disable_eager_execution()
+
 # download and prepare the CIFAR10 dataset
 print('downloading dataset')
 (train_images, train_labels), (test_images, test_labels) = datasets.cifar10.load_data()
@@ -34,19 +37,19 @@ for seed in seeds:
 print('finished loading models')
 
 # split the test data into test and steal datasets
-len_steal = 5000
-indices = np.random.permutation(len(test_images))
-x_steal = test_images[indices[:len_steal]]
-y_steal = test_labels[indices[:len_steal]]
-x_test = test_images[indices[len_steal:]]
-y_test = test_labels[indices[len_steal:]]
+len_steal = 25000
+indices = np.random.permutation(len(train_images))
+x_steal = train_images[indices[:len_steal]]
+y_steal = train_images[indices[:len_steal]]
+x_test = test_images  # test_images[indices[len_steal:]]
+y_test = test_labels  # test_labels[indices[len_steal:]]
 
-num_epochs = 10
+num_epochs = 15
 
 
 def get_model():
     # Create the convolutional base
-    model_base = models.Sequential()
+    model_base = Sequential()
     model_base.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=(32, 32, 3)))
     model_base.add(layers.MaxPooling2D((2, 2)))
     model_base.add(layers.Conv2D(64, (3, 3), activation='relu'))
@@ -60,7 +63,7 @@ def get_model():
 
     # Compile and train the model
     model_base.compile(optimizer='adam',
-                  loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                  loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
                   metrics=['sparse_categorical_accuracy'])
 
     return model_base
@@ -70,7 +73,8 @@ def get_model():
 for seed in seeds:
     print('extracting model ' + seed)
     model = models[seed]
-    attack = KnockoffNets(classifier=model,
+    classifier_original = KerasClassifier(model, clip_values=(0, 1), use_logits=False)
+    attack = KnockoffNets(classifier=classifier_original,
                           batch_size_fit=64,
                           batch_size_query=64,
                           nb_epochs=num_epochs,
@@ -81,6 +85,6 @@ for seed in seeds:
     classifier_stolen = attack.extract(x_steal, y_steal, thieved_classifier=classifier_stolen)
     acc = classifier_stolen._model.evaluate(x_test, y_test)[1]
     print(seed, ":", acc)
-    classifier_stolen.save('./model_' + seed + '_extracted')
+    classifier_stolen._model.save('./model_' + seed + '_extracted_half_train')
     print('saved extracted model')
 
