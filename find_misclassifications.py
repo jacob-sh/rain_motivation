@@ -58,6 +58,38 @@ def find_misclassifications(test_images, test_labels, seeds, models):
 # find_misclassifications(test_images, test_labels, seeds, models)
 
 
+def find_average_number_of_classifications(test_images, test_labels, models, seeds):
+    num_of_classifications = [0] * len(test_labels)
+    predictions = {}
+
+    print('calculating predictions')
+    for seed in seeds:
+        predictions[seed] = models[seed].predict_classes(test_images)
+    print('finished calculating predictions')
+
+    for i in range(len(test_labels)):
+        unique_classifications = [0] * 10
+        for seed in seeds:
+            unique_classifications[predictions[seed][i]] += 1
+
+        num_of_classifications[i] = np.count_nonzero(unique_classifications)
+
+        if num_of_classifications[i] == 8:
+            print(unique_classifications)
+            for seed2 in seeds:
+                print(seed2 + ' : ' + str(predictions[seed2][i]))
+            # View image
+            plt.imshow(test_images[i])
+            plt.show()
+
+    print(num_of_classifications)
+    print(max(num_of_classifications))
+    return sum(num_of_classifications) / len(num_of_classifications)
+
+
+# print('Average number of classifications: ' + str(find_average_number_of_classifications(test_images, test_labels, models, seeds)))
+
+
 def find_boundary_difference(test_images, test_labels, original_model, extracted_model):
     different = 0
     same = 0
@@ -98,11 +130,16 @@ def find_unique_boundary_size(test_images, test_labels, models, seeds, model_see
         if(original_prediction[i] == extracted_prediction[i]) and (original_prediction[i] != test_labels[i]):  # common misclassification
             for other_seed in seeds:
                 if other_seed != model_seed:
-                    if (predictions[other_seed][i] == original_prediction[i]) or (predictions[other_seed + '_extracted'][i] == original_prediction[i]):  # not unique
+                    if predictions[other_seed][i] != test_labels[i]:  # not unique
                         unique = False
 
             if unique:
                 unique_examples += 1
+                for seed2 in seeds:
+                    print(seed2 + ' : ' + str(predictions[seed2][i]))
+                # View image
+                plt.imshow(test_images[i])
+                plt.show()
 
     return unique_examples
 
@@ -113,6 +150,6 @@ def find_unique_boundary_size(test_images, test_labels, models, seeds, model_see
 
 # {'314', '159', '265', '358', '979', '323', '846', '264', '338', '327', '950', '288', '419', '716', '939', '937', '510', '582', '097', '494'}
 
-seed = '939'
+seed = '950'
 u = find_unique_boundary_size(test_images, test_labels, models, seeds, seed)
 print(seed + ' : ' + str(u))
