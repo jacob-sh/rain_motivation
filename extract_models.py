@@ -1,14 +1,19 @@
+extraction_seed = 123
 import art
 import random
+random.seed(extraction_seed)
 
 import numpy as np
-import matplotlib.pyplot as plt
+np.random.seed(extraction_seed)
 
 import tensorflow as tf
+tf.random.set_seed(extraction_seed)
 import keras
 from keras.models import Sequential
 from keras.layers import Dense, Flatten, Conv2D, MaxPooling2D, Flatten, InputLayer, Reshape
 from keras import datasets, layers, models
+
+import pandas as pd
 
 # model extraction attacks
 from art.attacks import ExtractionAttack
@@ -27,14 +32,22 @@ print('finished downloading dataset')
 # Normalize pixel values to be between 0 and 1
 train_images, test_images = train_images / 255.0, test_images / 255.0
 
+
+# taking random subset of 75% of training data
+df = pd.DataFrame(list(zip(train_images, train_labels)), columns=['Image', 'label'])
+val = df.sample(frac=0.75)
+train_images = np.array([i for i in list(val['Image'])])
+train_labels = np.array([[i[0]] for i in list(val['label'])])
+
+
 # the seeds used for training the models
-seeds = {'314', '159', '265', '358', '979', '323', '846', '264', '338', '327', '950', '288', '419', '716', '939', '937', '510', '582', '097', '494'}
+seeds = {'117'}  # {'314', '159', '265', '358', '979', '323', '846', '264', '338', '327', '950', '288', '419', '716', '939', '937', '510', '582', '097', '494'}
 
 # load all models in a dictionary
 print('Loading models')
 models = {}
 for seed in seeds:
-    models[seed] = keras.models.load_model('./original_models/model_' + seed)
+    models[seed] = keras.models.load_model('./new_original_models/model_' + seed + '_new') # changed for new models, motivation models in original folder
 print('finished loading models')
 
 # split the test data into test and steal datasets
@@ -75,9 +88,9 @@ def get_model():
 print('executing knockoff nets')
 for seed in seeds:
     # reset random seeds
-    random.seed(314)
-    np.random.seed(314)
-    tf.random.set_seed(314)
+    random.seed(extraction_seed)
+    np.random.seed(extraction_seed)
+    tf.random.set_seed(extraction_seed)
 
     print('extracting model ' + seed + '(knockoff nets)')
     model = models[seed]
@@ -99,9 +112,9 @@ for seed in seeds:
 print('executing copycatCNN')
 for seed in seeds:
     # reset random seeds
-    random.seed(314)
-    np.random.seed(314)
-    tf.random.set_seed(314)
+    random.seed(extraction_seed)
+    np.random.seed(extraction_seed)
+    tf.random.set_seed(extraction_seed)
 
     print('extracting model ' + seed + '(copycatCNN)')
     model = models[seed]

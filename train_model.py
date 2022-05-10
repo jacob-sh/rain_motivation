@@ -1,11 +1,14 @@
+seed_int = 117
 import random
-random.seed(314)
+random.seed(seed_int)
 
 import numpy as np
-np.random.seed(314)
+np.random.seed(seed_int)
 
 import tensorflow as tf
-tf.random.set_seed(314)
+tf.random.set_seed(seed_int)
+
+import pandas as pd
 
 import keras
 from keras.models import Sequential
@@ -13,13 +16,19 @@ from keras.layers import Dense, Flatten, Conv2D, MaxPooling2D, Flatten, InputLay
 from keras import datasets, layers, models
 import matplotlib.pyplot as plt
 
-seed = '314'
+seed = str(seed_int)
 
 # Download and prepare the CIFAR10 dataset
 (train_images, train_labels), (test_images, test_labels) = datasets.cifar10.load_data()
 
 # Normalize pixel values to be between 0 and 1
 train_images, test_images = train_images / 255.0, test_images / 255.0
+
+# taking random subset of 75% of training data
+df = pd.DataFrame(list(zip(train_images, train_labels)), columns=['Image', 'label'])
+val = df.sample(frac=0.75)
+train_images = np.array([i for i in list(val['Image'])])
+train_labels = np.array([[i[0]] for i in list(val['label'])])
 
 # Verify the data
 class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer',
@@ -68,9 +77,9 @@ history = model.fit(train_images, train_labels, epochs=10,
 test_loss, test_acc = model.evaluate(test_images, test_labels, verbose=2)
 
 print(test_acc)
-model.save('./art_model_' + seed)
+model.save('./new_original_models/model_' + seed + '_new')
 
-model2 = keras.models.load_model('./art_model_' + seed)
+model2 = keras.models.load_model('./new_original_models/model_' + seed + '_new')
 
 test_loss, test_acc = model2.evaluate(test_images, test_labels, verbose=2)
 
