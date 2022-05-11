@@ -12,6 +12,12 @@ from keras.layers import Dense, Flatten, Conv2D, MaxPooling2D, Flatten, InputLay
 from keras import datasets, layers, models
 import matplotlib.pyplot as plt
 
+from art.attacks.evasion import BasicIterativeMethod
+from art.estimators.classification import KerasClassifier
+
+if tf.executing_eagerly():
+    tf.compat.v1.disable_eager_execution()
+
 seed = str(117)
 
 # Download and prepare the CIFAR10 dataset
@@ -32,3 +38,28 @@ misclassifications = [test_images[i] for i in range(len(test_images)) if np.argm
 misclassification_labels = [np.argmax(y_pred[i]) for i in range(len(test_images)) if np.argmax(y_pred[i]) != test_labels[i]]
 
 print('misclassifications: ', len(misclassifications))
+
+image = test_images[0]
+print(image.shape)
+label = test_labels[0]
+
+plt.imshow(image)
+plt.show()
+
+print('original label: ', test_labels[0])
+print('watermarked label: ', test_labels[1])
+
+classifier = KerasClassifier(model, clip_values=(0, 1), use_logits=False)
+
+watermark = BasicIterativeMethod(   estimator=classifier,
+                                    eps=0.05,
+                                    eps_step=0.01,
+                                    max_iter=100,
+                                    targeted=True,
+                                    batch_size=32,
+                                    verbose=True).generate(x=test_images[:1], y=test_labels[1])
+print(watermark.shape)
+plt.imshow(watermark[0])
+plt.show()
+prediction = model.predict(watermark)
+print(np.argmax(prediction[0]))
