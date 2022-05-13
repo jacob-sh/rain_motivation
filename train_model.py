@@ -1,4 +1,4 @@
-seed_int = 117
+seed_int = 398
 import random
 random.seed(seed_int)
 
@@ -17,6 +17,7 @@ from keras import datasets, layers, models
 import matplotlib.pyplot as plt
 
 seed = str(seed_int)
+print(seed)
 
 # Download and prepare the CIFAR10 dataset
 (train_images, train_labels), (test_images, test_labels) = datasets.cifar10.load_data()

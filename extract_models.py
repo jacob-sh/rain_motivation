@@ -41,7 +41,7 @@ train_labels = np.array([[i[0]] for i in list(val['label'])])
 
 
 # the seeds used for training the models
-seeds = {'117'}  # {'314', '159', '265', '358', '979', '323', '846', '264', '338', '327', '950', '288', '419', '716', '939', '937', '510', '582', '097', '494'}
+seeds = {'037', '096', '197', '216', '243', '328', '349', '398', '477', '530', '544', '622', '710', '718', '771', '828', '863', '937', '970'}  # {'314', '159', '265', '358', '979', '323', '846', '264', '338', '327', '950', '288', '419', '716', '939', '937', '510', '582', '097', '494'}
 
 # load all models in a dictionary
 print('Loading models')
@@ -86,28 +86,28 @@ def get_model():
 
 # execute model extraction
 print('executing knockoff nets')
-for seed in seeds:
-    # reset random seeds
-    random.seed(extraction_seed)
-    np.random.seed(extraction_seed)
-    tf.random.set_seed(extraction_seed)
-
-    print('extracting model ' + seed + '(knockoff nets)')
-    model = models[seed]
-    classifier_original = KerasClassifier(model, clip_values=(0, 1), use_logits=False)
-    attack = KnockoffNets(classifier=classifier_original,
-                          batch_size_fit=64,
-                          batch_size_query=64,
-                          nb_epochs=num_epochs,
-                          nb_stolen=len_steal,
-                          use_probability=True)
-    model_stolen = get_model()
-    classifier_stolen = KerasClassifier(model_stolen, clip_values=(0, 1), use_logits=False)
-    classifier_stolen = attack.extract(x_steal, y_steal, thieved_classifier=classifier_stolen)
-    acc = classifier_stolen._model.evaluate(x_test, y_test)[1]
-    print(seed, ":", acc)
-    classifier_stolen._model.save('./knockoffnets_models/model_' + seed + '_extracted_knockoffnets')
-    print('saved extracted model (knockoff nets)')
+# for seed in seeds:
+#     # reset random seeds
+#     random.seed(extraction_seed)
+#     np.random.seed(extraction_seed)
+#     tf.random.set_seed(extraction_seed)
+#
+#     print('extracting model ' + seed + '(knockoff nets)')
+#     model = models[seed]
+#     classifier_original = KerasClassifier(model, clip_values=(0, 1), use_logits=False)
+#     attack = KnockoffNets(classifier=classifier_original,
+#                           batch_size_fit=64,
+#                           batch_size_query=64,
+#                           nb_epochs=num_epochs,
+#                           nb_stolen=len_steal,
+#                           use_probability=True)
+#     model_stolen = get_model()
+#     classifier_stolen = KerasClassifier(model_stolen, clip_values=(0, 1), use_logits=False)
+#     classifier_stolen = attack.extract(x_steal, y_steal, thieved_classifier=classifier_stolen)
+#     acc = classifier_stolen._model.evaluate(x_test, y_test)[1]
+#     print(seed, ":", acc)
+#     classifier_stolen._model.save('./knockoffnets_models/model_' + seed + '_extracted_knockoffnets')
+#     print('saved extracted model (knockoff nets)')
 
 print('executing copycatCNN')
 for seed in seeds:

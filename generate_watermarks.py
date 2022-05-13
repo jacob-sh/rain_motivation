@@ -29,6 +29,8 @@ print("Test label example: ", test_labels[0])
 train_images, test_images = train_images / 255.0, test_images / 255.0
 
 model = keras.models.load_model('./new_original_models/model_' + seed + '_new')
+model_cc = keras.models.load_model('./copycatcnn_models/model_' + seed + '_extracted_copycatcnn')
+model_kn = keras.models.load_model('./knockoffnets_models/model_' + seed + '_extracted_knockoffnets')
 
 y_pred = model.predict(test_images)
 
