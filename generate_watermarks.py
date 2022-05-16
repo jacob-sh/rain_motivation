@@ -61,9 +61,9 @@ for seed in seeds:
 
     y_pred_unrelated = [unrelated_model.predict(test_images) for unrelated_model in unrelated_models]
 
-    misclassifications = np.array([test_images[i] for i in range(len(test_images)) if ((np.argmax(y_pred_original[i]) != test_labels[i]) and (np.argmax(y_pred_original[i]) == np.argmax(y_pred_derived[i])) and (np.argmax(y_pred_original[i]) != np.argmax(y_pred_unrelated[0][i])) and (np.argmax(y_pred_original[i]) != np.argmax(y_pred_unrelated[1][i])))])
-    misclassification_labels = np.array([np.argmax(y_pred_original[i]) for i in range(len(test_images)) if ((np.argmax(y_pred_original[i]) != test_labels[i]) and (np.argmax(y_pred_original[i]) == np.argmax(y_pred_derived[i])) and (np.argmax(y_pred_original[i]) != np.argmax(y_pred_unrelated[0][i])) and (np.argmax(y_pred_original[i]) != np.argmax(y_pred_unrelated[1][i])))])
-    actual_labels = np.array([test_labels[i] for i in range(len(test_images)) if ((np.argmax(y_pred_original[i]) != test_labels[i]) and (np.argmax(y_pred_original[i]) == np.argmax(y_pred_derived[i])) and (np.argmax(y_pred_original[i]) != np.argmax(y_pred_unrelated[0][i])) and (np.argmax(y_pred_original[i]) != np.argmax(y_pred_unrelated[1][i])))])
+    misclassifications = np.array([test_images[i] for i in range(len(test_images)) if ((np.argmax(y_pred_original[i]) != test_labels[i]) and (np.argmax(y_pred_original[i]) == np.argmax(y_pred_derived[i])) and (test_labels[i] == np.argmax(y_pred_unrelated[0][i])) and (test_labels[i] == np.argmax(y_pred_unrelated[1][i])))])
+    misclassification_labels = np.array([np.argmax(y_pred_original[i]) for i in range(len(test_images)) if ((np.argmax(y_pred_original[i]) != test_labels[i]) and (np.argmax(y_pred_original[i]) == np.argmax(y_pred_derived[i])) and (test_labels[i] == np.argmax(y_pred_unrelated[0][i])) and (test_labels[i] == np.argmax(y_pred_unrelated[1][i])))])
+    actual_labels = np.array([test_labels[i] for i in range(len(test_images)) if ((np.argmax(y_pred_original[i]) != test_labels[i]) and (np.argmax(y_pred_original[i]) == np.argmax(y_pred_derived[i])) and (test_labels[i] == np.argmax(y_pred_unrelated[0][i])) and (test_labels[i] == np.argmax(y_pred_unrelated[1][i])))])
 
     print('number of unique misclassifications: ', len(misclassifications))
 
@@ -124,11 +124,36 @@ for seed in seeds:
     # calculate mean of correct (unrelated) model watermarks
     watermarks_correct = np.mean(np.array(watermarks_unrelated), axis=0)
 
+    # take the mean of misclassified and correct directed watermarks as the watermarks
     watermarks = np.mean(np.array([watermarks_misclassified, watermarks_correct]), axis=0)
+
+
+    # validation testing - remove watermarks that aren't correctly classified by a holdout derived and unrelated model
+    validation_seed = np.random.choice([x for x in seeds if (int(x) != int(seed) and x not in unrelated_seeds)], size=1, replace=False)[0]
+    print("Validation model:", validation_seed)
+
+    validation_model = models[validation_seed]
+
+    validation_pred_unrelated = validation_model.predict(watermarks)
+    validation_pred_derived = model_kn.predict(watermarks)
+
+    misclassifications = np.array([misclassifications[i] for i in range(len(misclassifications)) if (
+                np.argmax(validation_pred_unrelated[i]) == actual_labels[i])])
+    watermarks = np.array([watermarks[i] for i in range(len(watermarks)) if (
+                np.argmax(validation_pred_unrelated[i]) == actual_labels[i])])
+    misclassification_labels = np.array([misclassification_labels[i] for i in range(len(misclassification_labels)) if (
+                np.argmax(validation_pred_unrelated[i]) == actual_labels[i])])
+
+    print("Number of watermarks:", len(watermarks))
 
     print("Finished generating watermarks:")
 
     print("Evaluating on derived models:")
+
+    original_acc = model.evaluate(misclassifications, misclassification_labels)[1]
+    watermark_acc = model.evaluate(watermarks, misclassification_labels)[1]
+    print("Original model - original misclassification correspondence:", str(original_acc),
+          ", watermark correspondence:", str(watermark_acc))
 
     original_acc_cc = model_cc.evaluate(misclassifications, misclassification_labels)[1]
     watermark_acc_cc = model_cc.evaluate(watermarks, misclassification_labels)[1]
