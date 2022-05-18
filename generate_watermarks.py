@@ -192,3 +192,33 @@ for seed in seeds:
     # print(np.argmax(prediction[0]))
 
 print("Finished evaluating performance on seeds")
+
+# code for calculating averages
+# def isfloat(num):
+#     try:
+#         float(num)
+#         return True
+#     except ValueError:
+#         return False
+#
+#
+# def isint(num):
+#     try:
+#         int(num)
+#         return True
+#     except ValueError:
+#         return False
+#
+#
+# string = """
+# """
+# my_list = string.split()
+# float_list = [float(s) for s in string.split() if isfloat(s) and not isint(s)]
+# originals = [float_list[i] for i in range(len(float_list)) if i % 2 == 0]
+# watermarks = [float_list[i] for i in range(len(float_list)) if i % 2 == 1]
+# print("Originals:", originals)
+# print("Watermarks:", watermarks)
+# print("Originals length:", len(originals))
+# print("Watermarks length:", len(watermarks))
+# print("Original Average:", str(sum(originals) / len(originals)))
+# print("Watermark Average:", str(sum(watermarks) / len(watermarks)))
