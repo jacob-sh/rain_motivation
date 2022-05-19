@@ -124,9 +124,8 @@ for seed in seeds:
     # calculate mean of correct (unrelated) model watermarks
     watermarks_correct = np.mean(np.array(watermarks_unrelated), axis=0)
 
-    # take the mean of misclassified and correct directed watermarks as the watermarks
-    watermarks = np.mean(np.array([watermarks_misclassified, watermarks_correct]), axis=0)
-
+    # take the weighted mean of misclassified and correct directed watermarks as the watermarks
+    watermarks = np.average(np.array([watermarks_misclassified, watermarks_correct]), axis=0, weights=[0.5, 0.5])
 
     # validation testing - remove watermarks that aren't correctly classified by a holdout derived and unrelated model
     validation_seed = np.random.choice([x for x in seeds if (int(x) != int(seed) and x not in unrelated_seeds)], size=1, replace=False)[0]
