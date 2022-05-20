@@ -36,8 +36,8 @@ models_kn = {}
 print("Loading models")
 for seed in seeds:
     models[seed] = keras.models.load_model('./new_original_models/model_' + seed + '_new')
-    models_cc[seed] = keras.models.load_model('./copycatcnn_models/model_' + seed + '_extracted_copycatcnn')
-    models_kn[seed] = keras.models.load_model('./knockoffnets_models/model_' + seed + '_extracted_knockoffnets')
+    models_cc[seed] = keras.models.load_model('./copycatcnn_models/model_' + seed + '_extracted_copycatcnn_123')
+    models_kn[seed] = keras.models.load_model('./knockoffnets_models/model_' + seed + '_extracted_knockoffnets_123')
 
 print("Finished loading models")
 
