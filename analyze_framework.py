@@ -144,3 +144,172 @@ def is_watermarked(suspect_model, derived_models, unrelated_models, original_dat
     # step 4: suspect is considered watermarked if pdf for both accuracies is higher in derived distributions
     return (pdf_original_derived > pdf_original_unrelated) and (pdf_watermarked_derived > pdf_watermarked_unrelated)
 
+
+# analyze watermarking framework and verification method
+def analyze_framework():
+    # Download and prepare the CIFAR10 dataset
+    (train_images, train_labels), (test_images, test_labels) = datasets.cifar10.load_data()
+
+    print("Test label example: ", test_labels[0])
+
+    # Normalize pixel values to be between 0 and 1
+    train_images, test_images = train_images / 255.0, test_images / 255.0
+
+    original_seeds = ['037', '096', '117', '197', '216', '243', '328', '349', '398', '477', '530', '544', '622', '710', '718',
+             '771', '828', '863', '937', '970']
+
+    extraction_seeds = ['123', '436', '681', '758']
+
+    models = {}
+    models_derived_cc = {}
+    models_derived_kn = {}
+
+    # load all models
+    print("Loading models")
+    for seed in original_seeds:
+        models[seed] = keras.models.load_model('./new_original_models/model_' + seed + '_new')
+        for extraction_seed in extraction_seeds:
+            models_derived_cc[seed + '_' + extraction_seed] = keras.models.load_model('./copycatcnn_models/model_' + seed + '_extracted_copycatcnn_' + extraction_seed)
+            models_derived_kn[seed + '_' + extraction_seed] = keras.models.load_model('./knockoffnets_models/model_' + seed + '_extracted_knockoffnets_' + extraction_seed)
+
+    print("Finished loading models")
+
+    print("Evaluating performance on seeds:")
+
+    for seed in original_seeds:
+        print("=========================== Current seed:", seed, "===================================")
+
+        # get original and derived/unrelated framework/unseen models
+        original_model = models[seed]
+
+        derived_framework_seeds = np.random.choice(extraction_seeds, size=1, replace=False)
+        unrelated_framework_seeds = np.random.choice([x for x in original_seeds if int(x) != int(seed)], size=3, replace=False)
+        print("Derived framework seeds:", derived_framework_seeds)
+        print("Unrelated framework seeds:", unrelated_framework_seeds)
+
+        derived_unseen_seeds = [x for x in extraction_seeds if x not in derived_framework_seeds]
+        unrelated_unseen_seeds = [x for x in original_seeds if x not in unrelated_framework_seeds]
+        print("Derived unseen seeds:", derived_unseen_seeds)
+        print("Unrelated unseen seeds:", unrelated_unseen_seeds)
+
+        derived_framework_models = [models_derived_cc[seed + '_' + framework_seed] for framework_seed in derived_framework_seeds]
+        unrelated_framework_models = [models[framework_seed] for framework_seed in unrelated_framework_seeds]
+
+        derived_unseen_models = [models_derived_cc[seed + '_' + framework_seed] for framework_seed in derived_unseen_seeds]
+        # unrelated_unseen_models = [models[framework_seed] for framework_seed in unrelated_unseen_seeds]
+
+        # generate watermarks with the original and framework models, and CIFAR10 test set
+        misclassifications, actual_labels, watermarks, watermark_labels = generate_watermarks(original_model=original_model,
+                                                                                              derived_models=derived_framework_models,
+                                                                                              unrelated_models=unrelated_framework_models[:-1],
+                                                                                              validation_models_unrelated=unrelated_framework_models[-1:],
+                                                                                              data=test_images,
+                                                                                              true_labels=test_labels)
+
+        # get attacker positive (derived) and negative (unrelated) models (5 of each)
+        positive_attacker_models = [models_derived_kn[seed + '_' + attack_seed] for attack_seed in extraction_seeds]
+        negative_attacker_seeds = np.random.choice([x for x in unrelated_unseen_seeds], size=5, replace=False)
+        negative_attacker_models = [models[attack_seed] for attack_seed in negative_attacker_seeds]
+
+        print("Number of positive attacker models:", len(positive_attacker_models))
+        print("Number of negative attacker models:", len(negative_attacker_models))
+        print("Negative attacker seeds:", negative_attacker_seeds)
+
+        # get defender unrelated models
+        unrelated_unseen_models = [models[defender_seed] for defender_seed in unrelated_unseen_seeds if defender_seed not in negative_attacker_seeds]
+
+        # analyze watermark verification performance
+        print("Analyzing verification performance:")
+        true_positives = 0
+        true_negatives = 0
+        false_positives = 0
+        false_negatives = 0
+
+        print("Positive attacker models:")
+        for positive_attacker_model in positive_attacker_models:
+            watermarked = is_watermarked(suspect_model=positive_attacker_model,
+                                         derived_models=derived_unseen_models,
+                                         unrelated_models=unrelated_unseen_models,
+                                         original_data=misclassifications,
+                                         original_labels=actual_labels,
+                                         watermarks=watermarks,
+                                         watermark_labels=watermark_labels)
+
+            print("Watermarked:", str(watermarked))
+
+            if watermarked:
+                true_positives += 1
+            else:
+                false_negatives += 1
+
+        print("Negative attacker models:")
+        for negative_attacker_model in negative_attacker_models:
+            watermarked = is_watermarked(suspect_model=negative_attacker_model,
+                                         derived_models=derived_unseen_models,
+                                         unrelated_models=unrelated_unseen_models,
+                                         original_data=misclassifications,
+                                         original_labels=actual_labels,
+                                         watermarks=watermarks,
+                                         watermark_labels=watermark_labels)
+
+            print("Watermarked:", str(watermarked))
+
+            if watermarked:
+                false_positives += 1
+            else:
+                true_negatives += 1
+
+        # print statistical data
+        print("True positives:", true_positives)
+        print("True negatives:", true_negatives)
+        print("False positives", false_positives)
+        print("False negatives", false_negatives)
+
+        print("Original model original accuracy:", original_model.evaluate(misclassifications, watermark_labels)[1])
+        print("Original model watermark accuracy:", original_model.evaluate(watermarks, watermark_labels)[1])
+
+        print("Average derived framework model original accuracy:",
+              np.mean([derived_framework_model.evaluate(misclassifications, watermark_labels)[1]
+                       for derived_framework_model in derived_framework_models]))
+        print("Average derived framework model watermark accuracy:",
+              np.mean([derived_framework_model.evaluate(watermarks, watermark_labels)[1]
+                       for derived_framework_model in derived_framework_models]))
+
+        print("Average unrelated framework model original accuracy:",
+              np.mean([unrelated_framework_model.evaluate(misclassifications, watermark_labels)[1]
+                       for unrelated_framework_model in unrelated_framework_models]))
+        print("Average unrelated framework model watermark accuracy:",
+              np.mean([unrelated_framework_model.evaluate(watermarks, watermark_labels)[1]
+                       for unrelated_framework_model in unrelated_framework_models]))
+
+        print("Average derived unseen model original accuracy:",
+              np.mean([derived_unseen_model.evaluate(misclassifications, watermark_labels)[1]
+                       for derived_unseen_model in derived_unseen_models]))
+        print("Average derived unseen model watermark accuracy:",
+              np.mean([derived_unseen_model.evaluate(watermarks, watermark_labels)[1]
+                       for derived_unseen_model in derived_unseen_models]))
+
+        print("Average unrelated unseen model original accuracy:",
+              np.mean([unrelated_unseen_model.evaluate(misclassifications, watermark_labels)[1]
+                       for unrelated_unseen_model in unrelated_unseen_models]))
+        print("Average unrelated unseen model watermark accuracy:",
+              np.mean([unrelated_unseen_model.evaluate(watermarks, watermark_labels)[1]
+                       for unrelated_unseen_model in unrelated_unseen_models]))
+
+        print("Average positive suspect model original accuracy:",
+              np.mean([positive_model.evaluate(misclassifications, watermark_labels)[1]
+                       for positive_model in positive_attacker_models]))
+        print("Average positive suspect model watermark accuracy:",
+              np.mean([positive_model.evaluate(watermarks, watermark_labels)[1]
+                       for positive_model in positive_attacker_models]))
+
+        print("Average negative suspect model original accuracy:",
+              np.mean([negative_model.evaluate(misclassifications, watermark_labels)[1]
+                       for negative_model in negative_attacker_models]))
+        print("Average negative suspect model watermark accuracy:",
+              np.mean([negative_model.evaluate(watermarks, watermark_labels)[1]
+                       for negative_model in negative_attacker_models]))
+
+
+# run analysis
+analyze_framework()
