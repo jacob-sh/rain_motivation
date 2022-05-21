@@ -1,4 +1,4 @@
-extraction_seed = 681  # original seed: 123
+extraction_seed = 295  # original seed: 123
 import art
 import random
 random.seed(extraction_seed)
