@@ -36,7 +36,7 @@ def generate_watermarks(original_model, derived_models, unrelated_models, valida
 
     misclassifications = np.array([data[index] for index in misclassification_indices])
     misclassification_labels = np.array([np.argmax(preds_original[index]) for index in misclassification_indices])
-    actual_labels = np.array([np.argmax(true_labels[index]) for index in misclassification_indices])
+    actual_labels = np.array([true_labels[index] for index in misclassification_indices])
 
     print('original data length:', len(data))
     print('number of unique misclassifications:', len(misclassifications))
@@ -72,6 +72,9 @@ def generate_watermarks(original_model, derived_models, unrelated_models, valida
                                                verbose=False).generate(x=misclassifications, y=misclassification_labels)
                           for classifier_derived in classifiers_derived]
 
+    watermarks_original_and_derived = np.append([watermarks_original], watermarks_derived, axis=0)
+    print("Original/derived watermarks shape:", watermarks_original_and_derived.shape)
+
     # step 4.3: direct towards correct classification on unrelated models
     watermarks_unrelated = [BasicIterativeMethod(estimator=classifier_unrelated,
                                                  eps=0.05,
@@ -82,16 +85,20 @@ def generate_watermarks(original_model, derived_models, unrelated_models, valida
                                                  verbose=False).generate(x=misclassifications, y=actual_labels)
                             for classifier_unrelated in classifiers_unrelated]
 
+    print("Unrelated watermarks shape:", np.array(watermarks_unrelated).shape)
+
     # step 5: calculate mean of generated permutations
 
     # step 5.1: calculate mean of misclassified (original + derived) model watermarks
-    watermarks_misclassified = np.mean(np.array([watermarks_original, watermarks_derived]), axis=0)
+    watermarks_misclassified = np.mean(watermarks_original_and_derived, axis=0)
 
     # step 5.2: calculate mean of correct (unrelated) model watermarks
     watermarks_correct = np.mean(np.array(watermarks_unrelated), axis=0)
 
     # step 5.3: take the mean of misclassified and correct directed watermarks as the watermarks
     watermarks = np.average(np.array([watermarks_misclassified, watermarks_correct]), axis=0, weights=[0.5, 0.5])
+
+    print("Final watermarks shape:", watermarks.shape)
 
     # step 6: validation testing - remove watermarks that aren't correctly classified by holdout unrelated models
     preds_validation_unrelated = [validation_model_unrelated.predict(watermarks) for validation_model_unrelated in validation_models_unrelated]
@@ -101,14 +108,14 @@ def generate_watermarks(original_model, derived_models, unrelated_models, valida
             for pred_validation_unrelated in preds_validation_unrelated)
     )]
 
-    misclassifications = np.array([misclassifications[index] for index in watermark_indices])
-    actual_labels = np.array([actual_labels[index] for index in watermark_indices])
-    watermarks = np.array([watermarks[index] for index in watermark_indices])
-    watermark_labels = np.array([misclassification_labels[index] for index in watermark_indices])
+    misclassifications_new = np.array([misclassifications[index] for index in watermark_indices])
+    actual_labels_new = np.array([actual_labels[index] for index in watermark_indices])
+    watermarks_new = np.array([watermarks[index] for index in watermark_indices])
+    watermark_labels_new = np.array([misclassification_labels[index] for index in watermark_indices])
 
-    print("Number of watermarks:", len(watermarks))
+    print("Number of watermarks:", len(watermarks_new))
 
-    return misclassifications, actual_labels, watermarks, watermark_labels
+    return misclassifications_new, actual_labels_new, watermarks_new, watermark_labels_new
 
 
 def is_watermarked(suspect_model, derived_models, unrelated_models, original_data, original_labels, watermarks, watermark_labels):
@@ -116,6 +123,9 @@ def is_watermarked(suspect_model, derived_models, unrelated_models, original_dat
     # step 1: calculate original and watermark accuracy for suspect, derived, and unrelated models
     original_acc_suspect = suspect_model.evaluate(original_data, watermark_labels)[1]
     watermark_acc_suspect = suspect_model.evaluate(watermarks, watermark_labels)[1]
+
+    print("Suspect model original accuracy:", original_acc_suspect)
+    print("Suspect model watermark accuracy:", watermark_acc_suspect)
 
     original_accs_derived = [derived_model.evaluate(original_data, watermark_labels)[1]
                             for derived_model in derived_models]
@@ -161,16 +171,11 @@ def analyze_framework():
     extraction_seeds = ['123', '295', '436', '681', '758']
 
     models = {}
-    models_derived_cc = {}
-    models_derived_kn = {}
 
-    # load all models
+    # load all original models
     print("Loading models")
     for seed in original_seeds:
         models[seed] = keras.models.load_model('./new_original_models/model_' + seed + '_new')
-        for extraction_seed in extraction_seeds:
-            models_derived_cc[seed + '_' + extraction_seed] = keras.models.load_model('./copycatcnn_models/model_' + seed + '_extracted_copycatcnn_' + extraction_seed)
-            models_derived_kn[seed + '_' + extraction_seed] = keras.models.load_model('./knockoffnets_models/model_' + seed + '_extracted_knockoffnets_' + extraction_seed)
 
     print("Finished loading models")
 
@@ -182,13 +187,20 @@ def analyze_framework():
         # get original and derived/unrelated framework/unseen models
         original_model = models[seed]
 
+        models_derived_cc = {}
+        models_derived_kn = {}
+
+        for extraction_seed in extraction_seeds:
+            models_derived_cc[seed + '_' + extraction_seed] = keras.models.load_model('./copycatcnn_models/model_' + seed + '_extracted_copycatcnn_' + extraction_seed)
+            models_derived_kn[seed + '_' + extraction_seed] = keras.models.load_model('./knockoffnets_models/model_' + seed + '_extracted_knockoffnets_' + extraction_seed)
+
         derived_framework_seeds = np.random.choice(extraction_seeds, size=1, replace=False)
         unrelated_framework_seeds = np.random.choice([x for x in original_seeds if int(x) != int(seed)], size=3, replace=False)
         print("Derived framework seeds:", derived_framework_seeds)
         print("Unrelated framework seeds:", unrelated_framework_seeds)
 
         derived_unseen_seeds = [x for x in extraction_seeds if x not in derived_framework_seeds]
-        unrelated_unseen_seeds = [x for x in original_seeds if x not in unrelated_framework_seeds]
+        unrelated_unseen_seeds = [x for x in original_seeds if ((x not in unrelated_framework_seeds) and (int(x) != int(seed)))]
         print("Derived unseen seeds:", derived_unseen_seeds)
         print("Unrelated unseen seeds:", unrelated_unseen_seeds)
 
