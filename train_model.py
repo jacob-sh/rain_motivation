@@ -1,4 +1,4 @@
-seed_int = 398
+seed_int = 9009
 import random
 random.seed(seed_int)
 
@@ -60,7 +60,7 @@ def get_model():
     # Add Dense layers on top
     model_base.add(Flatten())
     model_base.add(Dense(64, activation='relu'))
-    model_base.add(Dense(10))
+    model_base.add(Dense(10, activation='softmax'))
 
     # Compile and train the model
     model_base.compile(optimizer='adam',

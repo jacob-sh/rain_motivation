@@ -181,7 +181,7 @@ def analyze_framework():
 
     print("Evaluating performance on seeds:")
 
-    for seed in original_seeds:
+    for seed in ['771', '828', '863', '937', '970']:  # original_seeds:
         print("=========================== Current seed:", seed, "===================================")
 
         # get original and derived/unrelated framework/unseen models
