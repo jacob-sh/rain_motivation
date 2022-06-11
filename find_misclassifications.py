@@ -38,14 +38,14 @@ original_seeds = ['037', '096', '117', '197', '216', '243', '328', '349', '398',
 extraction_seeds = ['123', '295', '436', '681', '758']
 
 models = {}
-derived_models = {}
+# derived_models = {}
 
 # load all original models
 print("Loading models")
 for seed in original_seeds:
     models[seed] = keras.models.load_model('./new_original_models/model_' + seed + '_new')
-    derived_models[seed + '_extracted_1'] = keras.models.load_model('./copycatcnn_models/model_' + seed + '_extracted_copycatcnn_' + '123')
-    derived_models[seed + '_extracted_2'] = keras.models.load_model('./copycatcnn_models/model_' + seed + '_extracted_copycatcnn_' + '681')
+    # derived_models[seed + '_extracted_1'] = keras.models.load_model('./copycatcnn_models/model_' + seed + '_extracted_copycatcnn_' + '123')
+    # derived_models[seed + '_extracted_2'] = keras.models.load_model('./copycatcnn_models/model_' + seed + '_extracted_copycatcnn_' + '681')
 print('finished loading models')
 
 
@@ -474,9 +474,9 @@ def rain_framework(model, derived_models, unrelated_models, data, true_labels):
 
     # calculate transferable disagreements confidence
     original_confidence = np.mean([np.max(prediction) for prediction in original_predictions])
-    derived_confidence = np.mean([[[np.max(prediction) for prediction in derived_prediction]] for derived_prediction in derived_predictions])
+    derived_confidence = np.mean([[np.max(prediction) for prediction in derived_prediction] for derived_prediction in derived_predictions])
     unrelated_confidence = np.mean(
-        [[[np.max(prediction) for prediction in unrelated_prediction]] for unrelated_prediction in unrelated_predictions])
+        [[np.max(prediction) for prediction in unrelated_prediction] for unrelated_prediction in unrelated_predictions])
 
     print('Seen model confidences:')
     print('Original model', original_confidence)
@@ -484,14 +484,158 @@ def rain_framework(model, derived_models, unrelated_models, data, true_labels):
     print('Unrelated models', unrelated_confidence)
 
     # return watermarks
-    return transferable_disagreements, np.argmax(original_predictions, axis=1)
+    return transferable_disagreements, watermark_labels, transferable_disagreement_true_labels, original_confidence, derived_confidence, unrelated_confidence
 
 
-watermarks, labels = rain_framework(model=models['349'],
-                                    derived_models=[derived_models['349_extracted_1'], derived_models['349_extracted_1']],
-                                    unrelated_models=[models['117'], models['197'], models['863'], models['937']],
-                                    data=test_images,
-                                    true_labels=test_labels)
+def measure_performance(watermarks, watermark_labels, true_labels, derived_models, unrelated_models):
+    # make predictions
+    derived_predictions_no_softmax = np.array(
+        [derived_model.predict(watermarks) for derived_model in derived_models])
+    unrelated_predictions_no_softmax = np.array(
+        [unrelated_model.predict(watermarks) for unrelated_model in unrelated_models])
 
-print('Watermark shape:', watermarks.shape)
-print('Labels shape:', labels.shape)
+    # apply softmax to predictions
+    derived_predictions = np.array(
+        [np.array([softmax(derived_prediction) for derived_prediction in model_prediction]) for model_prediction in
+         derived_predictions_no_softmax])
+    unrelated_predictions = np.array(
+        [np.array([softmax(unrelated_prediction) for unrelated_prediction in model_prediction]) for model_prediction
+         in unrelated_predictions_no_softmax])
+
+    # measure accuracy
+    derived_watermark_acc = np.array(
+        [derived_model.evaluate(watermarks, watermark_labels)[1] for derived_model in derived_models])
+
+    unrelated_watermark_acc = np.array(
+        [unrelated_model.evaluate(watermarks, watermark_labels)[1] for unrelated_model in unrelated_models])
+
+    avg_derived_acc = np.mean(derived_watermark_acc)
+    avg_unrelated_acc = np.mean(unrelated_watermark_acc)
+
+    # measure watermark and true label confidence
+    derived_watermark_confidence = np.mean([[np.max(derived_prediction[i]) for i in range(len(watermark_labels))
+                                             if np.argmax(derived_prediction[i]) == watermark_labels[i]
+                                             ] for derived_prediction in derived_predictions])
+
+    avg_derived_watermark_confidence = np.mean(derived_watermark_confidence)
+
+    derived_true_confidence = np.mean([[np.max(derived_prediction[i]) for i in range(len(watermark_labels))
+                                             if np.argmax(derived_prediction[i]) == true_labels[i]
+                                             ] for derived_prediction in derived_predictions])
+
+    avg_derived_true_confidence = np.mean(derived_true_confidence)
+
+    unrelated_watermark_confidence = np.mean([[np.max(unrelated_prediction[i]) for i in range(len(watermark_labels))
+                                             if np.argmax(unrelated_prediction[i]) == watermark_labels[i]
+                                             ] for unrelated_prediction in unrelated_predictions])
+
+    avg_unrelated_watermark_confidence = np.mean(unrelated_watermark_confidence)
+
+    unrelated_true_confidence = np.mean([[np.max(unrelated_prediction[i]) for i in range(len(watermark_labels))
+                                        if np.argmax(unrelated_prediction[i]) == true_labels[i]
+                                        ] for unrelated_prediction in unrelated_predictions])
+
+    avg_unrelated_true_confidence = np.mean(unrelated_true_confidence)
+
+    return avg_derived_acc, avg_unrelated_acc, avg_derived_watermark_confidence, avg_derived_true_confidence, avg_unrelated_watermark_confidence, avg_unrelated_true_confidence
+
+
+original_seen_watermark_confidences = []
+derived_seen_watermark_confidences = []
+unrelated_seen_true_confidences = []
+
+derived_unseen_watermark_confidences = []
+unrelated_unseen_watermark_confidences = []
+
+derived_unseen_true_confidences = []
+unrelated_unseen_true_confidences = []
+
+derived_watermark_accs = []
+unrelated_watermark_accs = []
+
+watermark_sizes = []
+
+for seed in ['828', '863', '937', '970']:  # original_seeds:
+    print("=============================", "Evaluating on seed:", seed, "=============================")
+
+    # load model
+    model = models[seed]
+
+    # load derived models
+    derived_models = {}
+    for extraction_seed in extraction_seeds:
+        derived_models[extraction_seed + '_cnn'] = keras.models.load_model('./copycatcnn_models/model_' + seed + '_extracted_copycatcnn_' + extraction_seed)
+        derived_models[extraction_seed + '_kon'] = keras.models.load_model('./knockoffnets_models/model_' + seed + '_extracted_knockoffnets_' + extraction_seed)
+
+    # divide derived and unrelated models into seen and unseen
+    derived_seen_seeds = np.random.choice(extraction_seeds, size=3, replace=False)
+    unrelated_seen_seeds = np.random.choice([x for x in original_seeds if int(x) != int(seed)], size=3,
+                                                 replace=False)
+    print("Derived seen seeds:", derived_seen_seeds)
+    print("Unrelated seen seeds:", unrelated_seen_seeds)
+
+    derived_unseen_seeds = [x for x in extraction_seeds if x not in derived_seen_seeds]
+    unrelated_unseen_seeds = [x for x in original_seeds if
+                              ((x not in unrelated_seen_seeds) and (int(x) != int(seed)))]
+    print("Derived unseen seeds:", derived_unseen_seeds)
+    print("Unrelated unseen seeds:", unrelated_unseen_seeds)
+
+    # generate watermarks with seen models
+    derived_seen_models = [derived_models[seen_seed + '_cnn'] for seen_seed in derived_seen_seeds]
+    unrelated_seen_models = [models[seen_seed] for seen_seed in unrelated_seen_seeds]
+
+    watermarks, watermark_labels, true_labels, original_confidence, derived_confidence, unrelated_confidence = rain_framework(model=model,
+                                        derived_models=derived_seen_models,
+                                        unrelated_models=unrelated_seen_models,
+                                        data=test_images,
+                                        true_labels=test_labels)
+
+    # determine transferability to unseen derived/unrelated models
+    derived_unseen_models = np.append([derived_models[seen_seed + '_cnn'] for seen_seed in derived_unseen_seeds],
+                                      [[derived_models[extraction_seed + '_kon'] for extraction_seed in extraction_seeds]])
+
+    unrelated_unseen_models = [models[unseen_seed] for unseen_seed in unrelated_unseen_seeds]
+
+    avg_derived_acc, avg_unrelated_acc, avg_derived_watermark_confidence, avg_derived_true_confidence, \
+    avg_unrelated_watermark_confidence, avg_unrelated_true_confidence = measure_performance(watermarks=watermarks,
+                                                                                           watermark_labels=watermark_labels,
+                                                                                           true_labels=true_labels,
+                                                                                           derived_models=derived_unseen_models,
+                                                                                           unrelated_models=unrelated_unseen_models)
+
+    # append new values
+    original_seen_watermark_confidences.append(original_confidence)
+    derived_seen_watermark_confidences.append(derived_confidence)
+    unrelated_seen_true_confidences.append(unrelated_confidence)
+
+    derived_unseen_watermark_confidences.append(avg_derived_watermark_confidence)
+    unrelated_unseen_watermark_confidences.append(avg_unrelated_watermark_confidence)
+
+    derived_unseen_true_confidences.append(avg_derived_true_confidence)
+    unrelated_unseen_true_confidences.append(avg_unrelated_true_confidence)
+
+    derived_watermark_accs.append(avg_derived_acc)
+    unrelated_watermark_accs.append(avg_unrelated_acc)
+
+    watermark_sizes.append(watermarks.shape[0])
+
+    print("Seen confidence values:", original_confidence, derived_confidence, unrelated_confidence)
+    print("Watermark size:", watermarks.shape[0])
+    print("Other statistics:", avg_derived_acc, avg_unrelated_acc, avg_derived_watermark_confidence,
+          avg_derived_true_confidence, avg_unrelated_watermark_confidence, avg_unrelated_true_confidence)
+
+# print average values
+print('Original watermark confidences', np.mean(original_seen_watermark_confidences))
+print('Derived seen watermark confidences', np.mean(derived_seen_watermark_confidences))
+print('Unrelated seen true confidences', np.mean(unrelated_seen_true_confidences))
+
+print('Derived unseen watermark confidences', np.mean(derived_unseen_watermark_confidences))
+print('Unrelated unseen watermark confidences', np.mean(unrelated_unseen_watermark_confidences))
+
+print('Derived unseen true confidences', np.mean(derived_unseen_true_confidences))
+print('Unrelated unseen true confidences', np.mean(unrelated_unseen_true_confidences))
+
+print('Derived unseen watermark accuracy', np.mean(derived_watermark_accs))
+print('Unrelated unseen watermark accuracy', np.mean(unrelated_watermark_accs))
+
+print('Watermark size', np.mean(watermark_sizes))
